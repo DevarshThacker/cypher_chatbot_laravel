@@ -43,32 +43,48 @@ class ChatController extends Controller
     {
         $userMessage = $request->input('message');
 
-        $apiKey = env('GEMINI_API_KEY'); // Set this in your .env file
+        $apiKey = env('GEMINI_API_KEY');
+
+        // Retrieve previous messages from session or start fresh
+        $history = session()->get('chat_history', []);
+
+        // Add the new user message to the history
+        $history[] = [
+            'role' => 'user',
+            'parts' => [
+                ['text' => $userMessage]
+            ]
+        ];
 
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
         ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey", [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $userMessage]
-                    ]
-                ]
-            ]
+            'contents' => $history
         ]);
 
         if ($response->failed()) {
             return response()->json(['error' => 'Failed to connect to Gemini API.'], 500);
         }
 
-        // Extract the content from the response
         $data = $response->json();
         $generatedText = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'No response generated.';
+
+        // Add the bot response to the history
+        $history[] = [
+            'role' => 'model',
+            'parts' => [
+                ['text' => $generatedText]
+            ]
+        ];
+
+        // Save updated history to session
+        session()->put('chat_history', $history);
 
         return response()->json([
             'response' => $generatedText,
         ]);
     }
+
 
 
 
